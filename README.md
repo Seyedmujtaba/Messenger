@@ -61,7 +61,7 @@ A cross-platform C++ messenger application with Python-based database API and a 
 ├── tests/
 │   ├── test_users.cpp
 │   ├── test_messages.cpp
-│   └── CMakeLists.txt```‌
+│   └── CMakeLists.txt ```‌
 
 ## 🔧 Features
 

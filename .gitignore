@@ -39,3 +39,21 @@
 
 # debug information files
 *.dwo
+
+# Build directories
+build/
+cmake-build-*/
+
+# Qt Creator
+*.pro.user
+*.qmake.stash
+
+# CLion / JetBrains IDEs
+.idea/
+*.iml
+
+# macOS system file
+.DS_Store
+
+# Windows system file
+Thumbs.db

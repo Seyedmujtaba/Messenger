@@ -32,20 +32,10 @@ A cross-platform C++ messenger application with Python-based database API and a 
 │   │   ├── BotManager.cpp
 │   │   ├── BotManager.hpp
 │   │   └── CMakeLists.txt
-│   ├── Voice/
-│   │   ├── VoiceCall.cpp
-│   │   ├── VoiceCall.hpp
-│   │   └── CMakeLists.txt
 │   ├── UI/
 │   │   ├── MainWindow.cpp
 │   │   ├── MainWindow.hpp
 │   │   ├── MainWindow.ui
-│   │   └── CMakeLists.txt
-│   ├── Shared/
-│   │   ├── Message.hpp
-│   │   ├── User.hpp
-│   │   ├── ChatRoom.hpp
-│   │   ├── Protocol.hpp
 │   │   └── CMakeLists.txt
 
 ├── api/

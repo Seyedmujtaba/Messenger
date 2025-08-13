@@ -1,4 +1,4 @@
-#include "../include/message.hpp"
+#include "../include/MessageHandler.h"
 #include <random>
 
 std::vector<Message> MessageManager::messages;

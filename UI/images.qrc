@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>image.jpg</file>
+        <file>call.png</file>
+    </qresource>
+</RCC>

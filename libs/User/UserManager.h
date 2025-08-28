@@ -11,8 +11,8 @@ public:
     bool registerUser(const std::string& username, const std::string& password);
     bool loginUser(const std::string& username, const std::string& password);
     void logoutUser();
-bool sendMessageToUser(const std::string& receiver, const std::string& content) 
-bool sendMessageToChatroom(const std::string& chatroomName, const std::string& content) 
+bool sendMessageToUser(const std::string& receiver, const std::string& content);
+bool sendMessageToChatroom(const std::string& chatroomName, const std::string& content);
     bool deleteUser(const std::string& username); 
     bool isLoggedIn() const;
     std::string getCurrentUser() const;

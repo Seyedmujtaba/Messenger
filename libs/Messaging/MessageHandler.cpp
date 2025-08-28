@@ -2,12 +2,79 @@
 #include <random>
 #include <regex>
 #include <unordered_set>
+#include <iostream>
+#include <codecvt> // اضافه شده
+#include <locale>  // اضافه شده
 
 std::vector<Message> MessageManager::messages;
 
-const std::unordered_set<std::wstring> ALLOWED_EMOJIS = {
-        L"😊", L"😂", L"❤️", L"👍", L"👎", L"🔥", L"🎉", L"🤔", L"😢", L"😡"
-};
+// اضافه کردن توابع تبدیل encoding
+std::wstring MessageManager::str_to_wstr(const std::string& str) {
+    try {
+        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+        return converter.from_bytes(str);
+    } catch (...) {
+        return L"";
+    }
+}
+
+std::string MessageManager::wstr_to_str(const std::wstring& wstr) {
+    try {
+        std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+        return converter.to_bytes(wstr);
+    } catch (...) {
+        return "";
+    }
+}
+
+// اضافه کردن توابع تبدیل پیام
+Message MessageManager::your_msg_to_db_msg(const ::Message& yourMsg) {
+    Message dbMsg;
+
+    if (!yourMsg.id.empty()) {
+        try {
+            dbMsg.id = std::stoi(yourMsg.id);
+        } catch (...) {
+            dbMsg.id = 0;
+        }
+    }
+
+    dbMsg.sender = wstr_to_str(yourMsg.sender);
+    dbMsg.receiver = wstr_to_str(yourMsg.receiver);
+    dbMsg.content = wstr_to_str(yourMsg.content);
+
+    // تبدیل time_t به string timestamp
+    std::tm* tm = std::localtime(&yourMsg.timestamp);
+    char buffer[20];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm);
+    dbMsg.timestamp = buffer;
+
+    dbMsg.isRead = yourMsg.is_read;
+    dbMsg.isEdited = !yourMsg.is_editable;
+
+    return dbMsg;
+}
+
+::Message MessageManager::db_msg_to_your_msg(const Message& dbMsg) {
+    ::Message yourMsg;
+
+    yourMsg.id = std::to_wstring(dbMsg.id);
+    yourMsg.sender = str_to_wstr(dbMsg.sender);
+    yourMsg.receiver = str_to_wstr(dbMsg.receiver);
+    yourMsg.content = str_to_wstr(dbMsg.content);
+
+    // تبدیل string timestamp به time_t
+    std::tm tm = {};
+    std::istringstream ss(dbMsg.timestamp);
+    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+    yourMsg.timestamp = std::mktime(&tm);
+
+    yourMsg.is_read = dbMsg.isRead;
+    yourMsg.is_editable = !dbMsg.isEdited;
+
+    return yourMsg;
+}
+
 
 const Message* MessageManager::find_message(const std::wstring& id) {
     for (const auto& msg : messages) {
@@ -30,52 +97,19 @@ std::wstring generate_id() {
     return id;
 }
 
-bool MessageManager::containsEmoji(const std::wstring& text) {
-    static const std::wregex emoji_regex(
-            L"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\u2600-\u26FF\u2700-\u27BF]"
-    );
-    return std::regex_search(text, emoji_regex);
-}
 
-std::wstring MessageManager::filterEmojis(const std::wstring& text) {
-    std::wstring filtered;
-    for (size_t i = 0; i < text.size(); ) {
-        bool isEmoji = false;
-
-        if (i + 3 < text.size()) {
-            std::wstring potentialEmoji(text.begin() + i, text.begin() + i + 4);
-            if (ALLOWED_EMOJIS.find(potentialEmoji) != ALLOWED_EMOJIS.end()) {
-                filtered += potentialEmoji;
-                i += 4;
-                isEmoji = true;
-            }
-        }
-
-        if (!isEmoji && i + 1 < text.size()) {
-            std::wstring potentialEmoji(text.begin() + i, text.begin() + i + 2);
-            if (ALLOWED_EMOJIS.find(potentialEmoji) != ALLOWED_EMOJIS.end()) {
-                filtered += potentialEmoji;
-                i += 2;
-                isEmoji = true;
-            }
-        }
-
-        if (!isEmoji) {
-            filtered += text[i];
-            i++;
-        }
-    }
-    return filtered;
-}
 
 void MessageManager::send(const Message& msg, const std::wstring& attachment_path) {
+    if (!is_valid_message(msg.content)) {
+        return;
+    }
+
     Message new_msg = msg;
     new_msg.content = filterEmojis(new_msg.content);
 
     if (!attachment_path.empty()) {
         new_msg.has_attachment = true;
         new_msg.file_path = attachment_path;
-        // استخراج نام فایل از مسیر
         size_t last_slash = attachment_path.find_last_of(L"/\\");
         new_msg.file_name = (last_slash == std::wstring::npos) ?
                             attachment_path :
@@ -86,11 +120,19 @@ void MessageManager::send(const Message& msg, const std::wstring& attachment_pat
         new_msg.id = generate_id();
     }
     messages.push_back(new_msg);
+
+    std::wcout << L"✅ پیام با موفقیت ارسال شد (" << new_msg.content.length() << L" کاراکتر)\n";
 }
 
-bool MessageManager::edit_message(const std::wstring& id, const std::wstring& new_content) {
+bool MessageManager::edit_message(const std::wstring& id,
+                                  const std::wstring& new_content,
+                                  const std::wstring& requester_username) {
     for (auto& msg : messages) {
-        if (msg.id == id && msg.is_editable && !msg.is_deleted) {
+        if (msg.id == id && msg.sender == requester_username) {
+            if (!can_edit_message(msg)) {
+                return false;
+            }
+
             msg.content = new_content;
             return true;
         }
@@ -98,16 +140,40 @@ bool MessageManager::edit_message(const std::wstring& id, const std::wstring& ne
     return false;
 }
 
-bool MessageManager::delete_message(const std::wstring& id) {
+bool MessageManager::can_edit_message(const Message& msg) {
+    if (msg.is_deleted || !msg.is_editable) {
+        return false;
+    }
+
+    const time_t now = time(nullptr);
+    const time_t one_week = 7 * 24 * 60 * 60;
+    return (now - msg.timestamp) <= one_week;
+}
+
+bool MessageManager::delete_message(const std::wstring& id, const std::wstring& username) {
     for (auto& msg : messages) {
-        if (msg.id == id && !msg.is_deleted) {
-            msg.is_deleted = true;
-            msg.content = L"این پیام حذف شده است";
-            msg.is_editable = false;
+        if (msg.id == id) {
+            if (msg.sender == username) {
+                msg.deleted_by_sender = true;
+            } else if (msg.receiver == username) {
+                msg.deleted_by_receiver = true;
+            } else {
+                return false;
+            }
+
+            if (msg.deleted_by_sender && msg.deleted_by_receiver) {
+                msg.content = L"این پیام حذف شده است";
+                msg.is_editable = false;
+            }
+
             return true;
         }
     }
     return false;
+}
+
+bool MessageManager::is_message_deleted(const Message& msg) {
+    return msg.deleted_by_sender || msg.deleted_by_receiver;
 }
 
 bool MessageManager::forward_message(const std::wstring& id, const std::wstring& new_receiver) {
@@ -136,21 +202,118 @@ Message MessageManager::create_reply(const std::wstring& original_id, const std:
     const Message* original = find_message(original_id);
     if (original) {
         reply.receiver = original->sender;
+        reply.replied_to_content = original->content;
+        reply.replied_to_sender = original->sender;
     }
 
     return reply;
 }
 
+std::wstring MessageManager::get_reply_preview(const Message& msg) {
+    if (msg.replied_to_id.empty()) {
+        return msg.content;
+    }
+
+    return L"پاسخ به \"" + msg.replied_to_content + L"\" از " +
+           msg.replied_to_sender + L": " + msg.content;
+}
+
+std::vector<std::wstring> MessageManager::get_unread_senders(const std::wstring& user) {
+    std::vector<std::wstring> senders;
+    for (const auto& msg : messages) {
+        if (!msg.is_deleted && msg.receiver == user && !msg.is_read) {
+            senders.push_back(msg.sender);
+        }
+    }
+    return senders;
+}
+
+std::vector<std::pair<std::wstring, int>> MessageManager::get_unread_notifications(const std::wstring& user) {
+    std::map<std::wstring, int> sender_count;
+
+    for (const auto& msg : messages) {
+        if (!msg.is_deleted && msg.receiver == user && !msg.is_read) {
+            sender_count[msg.sender]++;
+        }
+    }
+
+    std::vector<std::pair<std::wstring, int>> notifications;
+    for (const auto& [sender, count] : sender_count) {
+        notifications.emplace_back(sender, count);
+    }
+
+    return notifications;
+}
+
 std::vector<Message> MessageManager::get_last_messages(int limit) {
     std::vector<Message> active_messages;
     for (const auto& msg : messages) {
-        if (!msg.is_deleted) {
+        if (!(msg.deleted_by_sender && msg.deleted_by_receiver)) {
             active_messages.push_back(msg);
         }
     }
 
     limit = std::min(limit, static_cast<int>(active_messages.size()));
     return {active_messages.end() - limit, active_messages.end()};
+}
+
+bool MessageManager::mark_as_delivered(const std::wstring& id) {
+    for (auto& msg : messages) {
+        if (msg.id == id && !msg.is_deleted) {
+            msg.is_delivered = true;
+            msg.delivered_time = time(nullptr);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MessageManager::mark_as_seen(const std::wstring& id) {
+    for (auto& msg : messages) {
+        if (msg.id == id && !msg.is_deleted) {
+            msg.is_seen = true;
+            msg.seen_time = time(nullptr);
+            return true;
+        }
+    }
+    return false;
+}
+
+std::wstring MessageManager::get_message_status(const Message& msg) {
+    if (msg.is_seen) {
+        return L"✅ دیده شده";
+    } else if (msg.is_delivered) {
+        return L"✓✓ تحویل شده";
+    } else {
+        return L"✓ ارسال شده";
+    }
+}
+
+bool MessageManager::is_valid_message(const std::wstring& content) {
+    if (content.empty()) {
+        std::wcout << L"❌ پیام نمی‌تواند خالی باشد\n";
+        return false;
+    }
+
+    bool has_meaningful_content = false;
+    for (wchar_t c : content) {
+        if (c != L' ' && c != L'\n' && c != L'\t') {
+            has_meaningful_content = true;
+            break;
+        }
+    }
+
+    if (!has_meaningful_content) {
+        std::wcout << L"❌ پیام باید محتوای معنادار داشته باشد\n";
+        return false;
+    }
+
+    if (content.length() > 1000) {
+        std::wcout << L"❌ پیام نمی‌تواند بیشتر از 1000 کاراکتر باشد\n";
+        return false;
+    }
+
+    return true;
 }
 
 int MessageManager::get_unread_count(const std::wstring& user) {

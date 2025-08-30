@@ -13,7 +13,7 @@ public:
     void logoutUser();
 bool sendMessageToUser(const std::string& receiver, const std::string& content);
 bool sendMessageToChatroom(const std::string& chatroomName, const std::string& content);
-    bool deleteUser(const std::string& username); 
+    //bool deleteUser(const std::string& username); 
     bool isLoggedIn() const;
     std::string getCurrentUser() const;
 

@@ -48,7 +48,7 @@ std::string UserManager::hashPassword(const std::string& password) {
     return std::to_string(hasher(password));
 }
 
-bool UserManager::deleteUser(const std::string& username) {
+/*bool UserManager::deleteUser(const std::string& username) {
     if (!isLoggedIn() || currentUser != username) {
         //std::cout << "خطا: فقط می‌توانی حساب خودتو حذف کنی.\n";
         return false;
@@ -63,4 +63,4 @@ bool UserManager::deleteUser(const std::string& username) {
         //std::cout << "خطا در حذف حساب کاربری.\n";
         return false;
     }
-}
+}*/

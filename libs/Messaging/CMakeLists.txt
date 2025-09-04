@@ -18,8 +18,7 @@ else()
     FetchContent_MakeAvailable(sqlite3)
 
     
-    add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c
-            include/Database.h)
+    add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
     target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
     set(SQLITE3_LIB sqlite3)
 endif()
@@ -27,7 +26,6 @@ endif()
 add_executable(untitled2
         app/main.cpp
         src/MessageHandler.cpp
-        src/Database.cpp
         src/Database.cpp
 )
 

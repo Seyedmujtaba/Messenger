@@ -4,14 +4,13 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
-#include <io.h>
-#include <fcntl.h>
 #include <algorithm>
 #include <codecvt>
 #include <locale>
-#include "Database.h" // اضافه شده - بسیار مهم!
+#include <map>
+#include "Database.h"
 
-struct Message {
+struct ChatMessage {
     std::wstring id;
     std::wstring sender;
     std::wstring receiver;
@@ -51,8 +50,8 @@ struct Message {
 
 class MessageManager {
 private:
-    static std::vector<Message> messages;
-    static Database* db; // اضافه شده - اشاره‌گر به دیتابیس
+    static std::vector<ChatMessage> messages;
+    static Database* db;
 
     static bool contains_ignore_case(const std::wstring& str, const std::wstring& keyword) {
         auto it = std::search(
@@ -65,43 +64,40 @@ private:
         return it != str.end();
     }
 
-    static const Message* find_message(const std::wstring& id);
+    static const ChatMessage* find_message(const std::wstring& id);
 
 public:
-    // تابع مقداردهی اولیه دیتابیس - اضافه شده
-    static void initialize(Database* database);
+    static void initialize(Database* database, const std::wstring& username);
+    static void print_all_messages();
 
-    // توابع تبدیل encoding - اضافه شده
     static std::wstring str_to_wstr(const std::string& str);
     static std::string wstr_to_str(const std::wstring& wstr);
 
-    // توابع تبدیل پیام - اضافه شده
-    static ::Message db_msg_to_your_msg(const Message& dbMsg);
-    static Message your_msg_to_db_msg(const ::Message& yourMsg);
+    static ::ChatMessage db_msg_to_your_msg(const ChatMessage& dbMsg);
+    static ChatMessage your_msg_to_db_msg(const ::ChatMessage& yourMsg);
 
-    static void send(const Message& msg, const std::wstring& attachment_path = L"");
+    static bool send(const ChatMessage& msg, const std::wstring& attachment_path = L"");
     static bool edit_message(const std::wstring& id,
                              const std::wstring& new_content,
                              const std::wstring& requester_username);
-    static bool can_edit_message(const Message& msg);
-    static bool delete_message(const std::wstring& id);
+    static bool can_edit_message(const ChatMessage& msg);
     static bool delete_message(const std::wstring& id, const std::wstring& username);
-    static bool is_message_deleted(const Message& msg);
+    static bool is_message_deleted(const ChatMessage& msg);
     static bool mark_as_delivered(const std::wstring& id);
     static bool mark_as_seen(const std::wstring& id);
     static bool is_valid_message(const std::wstring& content);
-    static std::wstring get_message_status(const Message& msg);
+    static std::wstring get_message_status(const ChatMessage& msg);
     static bool forward_message(const std::wstring& id, const std::wstring& new_receiver);
-    static Message create_reply(const std::wstring& original_id, const std::wstring& sender,
-                                const std::wstring& reply_content);
-    static std::wstring get_reply_preview(const Message& msg);
-    static std::vector<Message> get_last_messages(int limit = 10);
+    static ChatMessage create_reply(const std::wstring& original_id, const std::wstring& sender,
+                                    const std::wstring& reply_content);
+    static std::wstring get_reply_preview(const ChatMessage& msg);
+    static std::vector<ChatMessage> get_last_messages(int limit = 10);
     static std::vector<std::wstring> get_unread_senders(const std::wstring& user);
     static std::vector<std::pair<std::wstring, int>> get_unread_notifications(const std::wstring& user);
     static int get_unread_count(const std::wstring& user);
 
-    static std::pair<int, std::vector<Message>> search_messages(const std::wstring& keyword) {
-        std::vector<Message> results;
+    static std::pair<int, std::vector<ChatMessage>> search_messages(const std::wstring& keyword) {
+        std::vector<ChatMessage> results;
         for (const auto& msg : messages) {
             if (!msg.is_deleted &&
                 (contains_ignore_case(msg.content, keyword) ||

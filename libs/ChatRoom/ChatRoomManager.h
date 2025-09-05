@@ -1,11 +1,13 @@
-#ifndef CHATROOM_H
-#define CHATROOM_H
+#ifndef CHATROOMMANAGER_H
+#define CHATROOMMANAGER_H
 
 #include <string>
 #include <vector>
 #include <set>
 #include <map>
 #include <ctime>
+#include <memory>
+#include "Database.h"
 
 enum class ChatRoomError {
     SUCCESS,                    // Operation completed successfully
@@ -43,7 +45,7 @@ struct OperationResult {
         : success(success), error(error), message(message) {}
 };
 
-struct Message {
+struct ChatMessage {
     int id;                     // Unique message identifier
     int senderId;               // ID of user who sent the message
     std::string content;        // Text content of the message
@@ -52,15 +54,20 @@ struct Message {
     std::time_t timestamp;      // Unix timestamp of message creation
     std::set<int> readBy;       // Set of user IDs who have read the message
 
-    Message(int id, int senderId, const std::string& content,
-            const std::string& attachmentPath = "",
-            int replyToMessageId = -1);
+    ChatMessage() : id(-1), senderId(-1), replyToMessageId(-1), timestamp(0) {}
+
+    ChatMessage(int id, int senderId, const std::string& content,
+                const std::string& attachmentPath = "",
+                int replyToMessageId = -1);
 
     // ============ Utility Methods ============
     bool isReadBy(int userId) const;
     int getReadCount() const;
     bool hasAttachment() const;
     bool isReply() const;
+
+    // تابع تبدیل برای دیتابیس
+    static ChatMessage fromDatabaseMessage(const ::Message& dbMessage);
 };
 
 class ChatRoom {
@@ -80,16 +87,19 @@ private:
     bool onlyAdminsCanMessage;  // Restriction setting for messaging
 
     // ============ Message Management ============
-    std::vector<Message> messages;      // List of all messages
+    std::vector<ChatMessage> messages;      // List of all messages
     std::vector<int> pinnedMessages;    // List of pinned message IDs
     int nextMessageId;          // Next available message ID
 
+    // اضافه شده: اشاره‌گر به دیتابیس
+    std::shared_ptr<Database> database;
+
 public:
     ChatRoom(int id, const std::string& name, const std::string& bio,
-             const std::string& profileImagePath, bool isPrivate, int creatorId);
+             const std::string& profileImagePath, bool isPrivate, int creatorId,
+             std::shared_ptr<Database> db);
 
     // ================= Getters =================
-
     int getId() const;
     std::string getName() const;
     std::string getBio() const;
@@ -99,10 +109,10 @@ public:
     int getCreatorId() const;
     std::vector<int> getMembers() const;
     std::vector<int> getAdmins() const;
-    std::vector<Message> getMessages() const;
+    std::vector<ChatMessage> getMessages() const;
     std::vector<int> getPinnedMessages() const;
     bool getOnlyAdminsCanMessage() const;
-    const Message* getMessageById(int messageId) const;
+    const ChatMessage* getMessageById(int messageId) const;
 
     // ================= Group Information Management =================
     OperationResult setName(const std::string& newName, int requesterId);
@@ -116,16 +126,12 @@ public:
     OperationResult addMember(int requesterId, int userId);
     OperationResult removeMember(int userId);
     OperationResult removeMember(int requesterId, int userId);
-
     bool isMember(int userId) const;
     bool isOwner(int userId) const;
 
     // ================= Admin Management =================
     OperationResult addAdmin(int userId, int requesterId);
-    OperationResult addAdmin(int requesterId, int userId);
     OperationResult removeAdmin(int userId, int requesterId);
-    OperationResult removeAdmin(int requesterId, int userId);
-
     bool isAdmin(int userId) const;
 
     // ================= Message Management =================
@@ -139,34 +145,49 @@ public:
     OperationResult markMessageAsRead(int messageId, int userId);
     OperationResult forwardMessage(int messageId, int forwarderId, ChatRoom& targetRoom);
     OperationResult pinMessage(int userId, int messageId);
-    OperationResult searchMessages(const std::string& keyword, std::vector<Message>& results) const;
+    OperationResult searchMessages(const std::string& keyword, std::vector<ChatMessage>& results) const; // تغییر نوع
 
     // ================= Utilities and Statistics =================
-    std::vector<Message> getMessagesWithReplies() const;
-    std::vector<Message> getUnreadMessages(int userId) const;
+    std::vector<ChatMessage> getMessagesWithReplies() const; // تغییر نوع
+    std::vector<ChatMessage> getUnreadMessages(int userId) const; // تغییر نوع
     int getUnreadCount(int userId) const;
     int getTotalMessages() const;
     int getActiveMembersCount() const;
+
+    // ================= Database Integration =================
+    bool syncWithDatabase();
+    bool loadMessagesFromDatabase();
+    bool saveMessageToDatabase(const ChatMessage& message); // تغییر نوع
+    bool saveRoomToDatabase();
+    bool addMemberToDatabase(int userId);
+    bool removeMemberFromDatabase(int userId);
 
 private:
     // ================= Private Methods =================
     void generateInviteLink();
     bool hasAdminPrivilege(int userId) const;
-    Message* findMessageById(int messageId);
+    ChatMessage* findMessageById(int messageId); // تغییر نوع
+
+    // توابع کمکی برای تبدیل
+    std::string userIdToUsername(int userId) const;
+    int usernameToUserId(const std::string& username) const;
 };
+
 class ChatRoomManager {
 private:
     std::map<int, ChatRoom> chatRooms;  // Map of room ID to ChatRoom objects
     int nextRoomId;                     // Next available room ID
 
+    // اضافه شده: اشاره‌گر به دیتابیس
+    std::shared_ptr<Database> database;
+
 public:
-    ChatRoomManager();
+    ChatRoomManager(std::shared_ptr<Database> db);
 
     // ================= Room Management =================
     OperationResult createRoom(const std::string& name, const std::string& bio,
                               const std::string& profileImagePath, bool isPrivate,
                               int creatorId, ChatRoom*& outRoom);
-
     OperationResult deleteRoom(int roomId, int requesterId);
 
     // ================= Room Search =================
@@ -185,8 +206,19 @@ public:
     int getTotalRoomsCount() const;
     int getUserRoomCount(int userId) const;
 
+    // ================= Database Integration =================
+    bool loadAllRoomsFromDatabase();
+    bool registerUser(const std::string& username, const std::string& password);
+    bool authenticateUser(const std::string& username, const std::string& password);
+    int getUserIdFromUsername(const std::string& username) const;
+    std::string getUsernameFromUserId(int userId) const;
+
 private:
     bool isValidRoomName(const std::string& name) const;
+
+    // نگاشت بین userId و username
+    mutable std::map<int, std::string> userIdToUsernameMap;
+    mutable std::map<std::string, int> usernameToUserIdMap;
 };
 
-#endif // CHATROOM_H
+#endif // CHATROOMMANAGER_H

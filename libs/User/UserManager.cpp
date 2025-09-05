@@ -48,19 +48,19 @@ std::string UserManager::hashPassword(const std::string& password) {
     return std::to_string(hasher(password));
 }
 
-bool UserManager::deleteUser(const std::string& username) {
+/*bool UserManager::deleteUser(const std::string& username) {
     if (!isLoggedIn() || currentUser != username) {
-        std::cout << "خطا: فقط می‌توانی حساب خودتو حذف کنی.\n";
+        //std::cout << "خطا: فقط می‌توانی حساب خودتو حذف کنی.\n";
         return false;
     }
 
     if (database.deleteAccount(username)) {
-        std::cout << "حساب کاربری با موفقیت حذف شد.\n";
+        //std::cout << "حساب کاربری با موفقیت حذف شد.\n";
         logoutUser();
         return true;
     }
     else {
-        std::cout << "خطا در حذف حساب کاربری.\n";
+        //std::cout << "خطا در حذف حساب کاربری.\n";
         return false;
     }
-}
+}*/
